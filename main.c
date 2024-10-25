@@ -42,7 +42,7 @@ static void ParseArgs(int argc, const char* argv[], Context* ctx);
 static void WritePass(Context* ctx);
 static HRESULT CreatePseudoConsoleAndPipes(HPCON* hpcon, Context* ctx);
 static HRESULT InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA* startupInfo,
-                                                            HPCON hpcon);
+    HPCON hpcon);
 static void __cdecl PipeListener(LPVOID);
 
 int main(int argc, const char* argv[]) {
@@ -59,12 +59,12 @@ int main(int argc, const char* argv[]) {
     if (ctx.events[0] == NULL) {
         return EXIT_FAILURE;
     }
-
+    DWORD exitCode = EXIT_FAILURE;
     DWORD consoleMode = 0;
     GetConsoleMode(ctx.stdOut, &consoleMode);
     hr = SetConsoleMode(ctx.stdOut, consoleMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-                 ? S_OK
-                 : GetLastError();
+        ? S_OK
+        : GetLastError();
     if (S_OK == hr) {
         HPCON hpcon = INVALID_HANDLE_VALUE;
 
@@ -76,15 +76,17 @@ int main(int argc, const char* argv[]) {
             if (S_OK == InitializeStartupInfoAttachedToPseudoConsole(&startupInfo, hpcon)) {
                 PROCESS_INFORMATION cmdProc;
                 hr = CreateProcessA(NULL, (char*) ctx.args.cmd, NULL, NULL, FALSE,
-                                    EXTENDED_STARTUPINFO_PRESENT, NULL, NULL,
-                                    &startupInfo.StartupInfo, &cmdProc)
-                             ? S_OK
-                             : GetLastError();
+                    EXTENDED_STARTUPINFO_PRESENT, NULL, NULL,
+                    &startupInfo.StartupInfo, &cmdProc)
+                    ? S_OK
+                    : GetLastError();
 
                 if (S_OK == hr) {
                     ctx.events[1] = cmdProc.hThread;
                     WaitForMultipleObjects(sizeof(ctx.events) / sizeof(HANDLE), ctx.events, FALSE,
-                                           INFINITE);
+                        INFINITE);
+                    
+                    GetExitCodeProcess(cmdProc.hProcess, &exitCode);
                 }
 
                 CloseHandle(cmdProc.hThread);
@@ -107,7 +109,7 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    return S_OK == hr ? EXIT_SUCCESS : EXIT_FAILURE;
+    return S_OK == hr ? exitCode : EXIT_FAILURE;
 }
 
 static void ParseArgs(int argc, const char* argv[], Context* ctx) {
@@ -214,7 +216,7 @@ static HRESULT CreatePseudoConsoleAndPipes(HPCON* hpcon, Context* ctx) {
 }
 
 static HRESULT InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA* startupInfo,
-                                                            HPCON hpcon) {
+    HPCON hpcon) {
     HRESULT hr = E_UNEXPECTED;
     if (startupInfo == NULL) {
         return hr;
@@ -235,10 +237,10 @@ static HRESULT InitializeStartupInfoAttachedToPseudoConsole(STARTUPINFOEXA* star
     }
 
     hr = UpdateProcThreadAttribute(startupInfo->lpAttributeList, 0,
-                                   PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, hpcon, sizeof(HPCON), NULL,
-                                   NULL)
-                 ? S_OK
-                 : HRESULT_FROM_WIN32(GetLastError());
+        PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, hpcon, sizeof(HPCON), NULL,
+        NULL)
+        ? S_OK
+        : HRESULT_FROM_WIN32(GetLastError());
 
     return hr;
 }
@@ -258,6 +260,7 @@ static State ProcessOutput(Context* ctx, const char* buffer, DWORD len, State st
     switch (state) {
     case INIT: {
         if (!IsWaitInputPass(ctx, buffer, len)) {
+            fprintf(stdout, "%s", buffer);
             nextState = INIT;
         } else {
             WritePass(ctx);
@@ -342,7 +345,7 @@ static void WritePass(Context* ctx) {
         break;
     case PWT_FILE: {
         HANDLE file = CreateFileA(ctx->args.pwsrc.filename, GENERIC_READ, FILE_SHARE_READ, NULL,
-                                  OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
+            OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
         if (file != INVALID_HANDLE_VALUE) {
             WritePassHandle(ctx, file);
             CloseHandle(file);
@@ -350,7 +353,7 @@ static void WritePass(Context* ctx) {
     } break;
     case PWT_PASS: {
         WriteFile(ctx->pipeOut, ctx->args.pwsrc.password, strlen(ctx->args.pwsrc.password), NULL,
-                  NULL);
+            NULL);
         WriteFile(ctx->pipeOut, "\n", 1, NULL, NULL);
 
     } break;
